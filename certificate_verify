@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#01121c">
+<title>Certificate Verifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #e9f7f8;        /* main text */
+    --muted: #8fb3b9;      /* softer text */
+    --paper: #01121c;      /* page background (matches banner) */
+    --card: #072430;       /* result box background */
+    --line: #12404c;       /* borders and dividers */
+    --accent: #2ac5cc;     /* cyan: button, focus, highlights */
+    --accent-dark: #1fa3a9;
+    --on-accent: #01121c;  /* text on cyan button */
+    --ok: #4ee3a0;         /* "Valid" text */
+    --ok-bg: #0b3a2c;      /* "Valid" background */
+    --bad: #ff8a80;        /* "Not found" / "Revoked" text */
+    --bad-bg: #3d1618;     /* "Not found" / "Revoked" background */
+    --warn: #ffd166;
+    --warn-bg: #3b2f0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--paper);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  main { width: 100%; max-width: 600px; padding: 24px 20px 24px; flex: 1; }
+  .banner { width: 100%; display: block; margin-bottom: 26px; border-radius: 6px; }
+  h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 2rem; margin: 0 0 6px; line-height: 1.15; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .search { display: flex; gap: 8px; }
+  input {
+    flex: 1; min-width: 0; padding: 13px 14px; font: inherit; font-size: 1rem;
+    border: 2px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);
+  }
+  input::placeholder { color: #5f8189; }
+  input:focus { outline: 3px solid rgba(42,197,204,.35); border-color: var(--accent); }
+  button {
+    padding: 13px 24px; font: inherit; font-weight: 700; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px;
+  }
+  button:hover { background: var(--accent-dark); }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  #result { margin-top: 22px; }
+  .card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .status { padding: 14px 18px; font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 1.15rem; }
+  .valid .status { background: var(--ok-bg); color: var(--ok); }
+  .revoked .status, .notfound .status { background: var(--bad-bg); color: var(--bad); }
+  .expired .status { background: var(--warn-bg); color: var(--warn); }
+  dl { margin: 0; padding: 6px 18px 12px; }
+  .row { padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  dt { font-size: .85rem; color: var(--muted); margin-bottom: 2px; }
+  dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+  .msg { padding: 14px 18px 18px; color: var(--muted); margin: 0; }
+  footer { padding: 18px 20px 28px; color: var(--muted); font-size: .85rem; text-align: center; }
+  @media (max-width: 420px) {
+    .search { flex-direction: column; }
+    h1 { font-size: 1.7rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- Put your webinar banner in the same folder as title-webinar.png. It hides itself if missing. -->
+  <img class="banner" src="title-webinar.png" alt="" onerror="this.remove()">
+
+  <h1>Certificate Verifier</h1>
+  <p class="sub">Enter a control number or scan the QR code on the certificate.</p>
+
+  <div class="search">
+    <input id="id" type="text" placeholder="e.g. CPEWR-2026-054-MEYS" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Control number">
+    <button id="go" type="button">Verify</button>
+  </div>
+
+  <div id="result" aria-live="polite"></div>
+</main>
+
+<footer>credits: GROUP 9 | CEIT-03-702P | SEMINARS AND FIELD TRIPS</footer>
+
+<script>
+/* ====== EDIT THIS LIST ======
+   One entry per certificate. Keep control numbers unguessable (don't use 001, 002...).
+   status: "valid" or "revoked". expires is optional (YYYY-MM-DD). */
+const EVENT_NAME = "From Sensors to Systems: Understanding IoT Architecture and Integration";
+const EVENT_DATE = "2026-11-14";
+/* role: "Resource Speaker" or "Participant" (or anything you like).
+   The control numbers below are placeholders. Replace them with your own. */
+const CERTIFICATES = [
+  { id: "IOT-2026-001-SPK7", name: "Jassen Mhae I. Aratea", role: "Resource Speaker", event: EVENT_NAME, date: EVENT_DATE, status: "valid" },
+  { id: "IOT-2026-054-MEYS", name: "Juan Dela Cruz",        role: "Participant",      event: EVENT_NAME, date: EVENT_DATE, status: "valid" },
+  { id: "IOT-2026-088-ZNLP", name: "Maria Santos",          role: "Participant",      event: EVENT_NAME, date: EVENT_DATE, status: "revoked" }
+];
+/* ============================ */
+
+const $input = document.getElementById("id");
+const $result = document.getElementById("result");
+const $go = document.getElementById("go");
+
+function fmtDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d) ? iso : d.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function row(label, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "row";
+  const dt = document.createElement("dt"); dt.textContent = label;
+  const dd = document.createElement("dd"); dd.textContent = value;
+  wrap.append(dt, dd);
+  return wrap;
+}
+
+function render(kind, title, cert, message) {
+  $result.textContent = "";
+  const card = document.createElement("div");
+  card.className = "card " + kind;
+  const s = document.createElement("div");
+  s.className = "status"; s.textContent = title;
+  card.appendChild(s);
+  if (cert) {
+    const dl = document.createElement("dl");
+    dl.append(
+      row("Name", cert.name),
+      row("Role", cert.role || "Participant"),
+      row("Event", cert.event),
+      row("Event date", fmtDate(cert.date)),
+      row("Control number", cert.id)
+    );
+    card.appendChild(dl);
+  }
+  if (message) {
+    const p = document.createElement("p");
+    p.className = "msg"; p.textContent = message;
+    card.appendChild(p);
+  }
+  $result.appendChild(card);
+}
+
+function verify(raw) {
+  const id = (raw || "").trim().toUpperCase();
+  if (!id) { $result.textContent = ""; return; }
+  const cert = CERTIFICATES.find(c => c.id.toUpperCase() === id);
+  if (!cert) {
+    render("notfound", "Not found", null,
+      "No certificate matches “" + id + "”. Check the control number for typos, or contact the organizers.");
+  } else if (cert.status === "revoked") {
+    render("revoked", "Certificate revoked", cert, "This certificate is no longer valid.");
+  } else if (cert.expires && new Date(cert.expires + "T23:59:59") < new Date()) {
+    render("expired", "Certificate expired", cert, "This certificate expired on " + fmtDate(cert.expires) + ".");
+  } else {
+    render("valid", "Valid certificate", cert, "");
+  }
+  try { history.replaceState(null, "", "?id=" + encodeURIComponent(id)); } catch (e) {}
+}
+
+$go.addEventListener("click", () => verify($input.value));
+$input.addEventListener("keydown", e => { if (e.key === "Enter") verify($input.value); });
+
+// Auto-verify when opened from a QR code (?id=...)
+const fromUrl = new URLSearchParams(location.search).get("id");
+if (fromUrl) { $input.value = fromUrl.toUpperCase(); verify(fromUrl); }
+</script>
+</body>
+</html>
